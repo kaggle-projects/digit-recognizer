@@ -1,20 +1,20 @@
 import datetime
 import os
-import sys
-import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
 
+import numpy as np
 import pandas as pd
 from sklearn import svm
-from sklearn.exceptions import ConvergenceWarning
 from utensil import get_logger
 from utensil.random_search import RandomizedConfig, ExponentialBetweenParam, RandomizedChoices, UniformBetweenParam, \
     BooleanParam, SeededConfig, RandomSearch, ModelScore
 
-
-script_name = os.path.basename(__file__)
+if __file__:
+    script_name = os.path.basename(__file__)
+else:
+    script_name = __name__
 logger = get_logger(script_name)
 
 
@@ -56,7 +56,7 @@ linear_svm_config_temp = LinearSvmConfig(
 
 
 class LinearSvmRandomSearch(RandomSearch):
-
+    MODEL_NAME = 'linearsvm'
     def get_xy(self, tr_path, te_path):
         tr_path = os.path.normpath(tr_path)
         te_path = os.path.normpath(te_path)
@@ -73,11 +73,11 @@ class LinearSvmRandomSearch(RandomSearch):
         df_columns = df.columns.tolist()
         df_columns[df_columns.index('score')], df_columns[0] = df_columns[0], df_columns[df_columns.index('score')]
         df = df[df_columns]
-        df.to_csv(f'{script_name}.model_scores.csv')
+        df.to_csv(f'{self.MODEL_NAME}.model_scores.csv')
 
     def do_training(self, sd_config: SeededConfig, train_x, train_y, idx):
         # get model config by model_id
-        logger.info(f'model_id={sd_config.cid}: config={sd_config.config.to_plain_dict()}')
+        self.logger.info(f'model_id={sd_config.cid}: config={sd_config.config.to_plain_dict()}')
 
         # get validation set
         tr_size = int(train_x.shape[0] * sd_config.config.train_ratio)
@@ -95,23 +95,23 @@ class LinearSvmRandomSearch(RandomSearch):
         )
 
         # train and validation
-        logger.info(f'model_id={sd_config.cid}: training')
-        model = svm.LinearSVC(max_iter=1, **linear_svc_kwargs)
-        elapse = 0
-        while elapse < sd_config.config.timeout:
-            with warnings.catch_warnings(record=True) as wrn:
-                warnings.simplefilter('always', category=ConvergenceWarning)
-                st = datetime.datetime.now()
-                model.fit(tr_x, tr_y)
-                if not any([w.category is ConvergenceWarning for w in wrn]):
-                    break
-                elapse += (datetime.datetime.now() - st).total_seconds()
-                sys.stdout.write('..')
-                sys.stdout.flush()
-        else:
-            logger.info(f'model_id={sd_config.cid}: timeout, {elapse:3g} >= {sd_config.config.timeout:3g}')
+        self.logger.info(f'model_id={sd_config.cid}: training')
+        # estimate training time
+        st = datetime.datetime.now()
+        svm.LinearSVC(max_iter=20, random_state=0, **linear_svc_kwargs).fit(tr_x, tr_y)
+        e2 = (datetime.datetime.now() - st).total_seconds()
+        st = datetime.datetime.now()
+        svm.LinearSVC(max_iter=10, random_state=0, **linear_svc_kwargs).fit(tr_x, tr_y)
+        e1 = (datetime.datetime.now() - st).total_seconds()
+        estimated_iter = int(np.round(sd_config.config.timeout * 10 / (e2-e1) - max(0.0, 2*e1 - e2)))
+        self.logger.info(f'e20={e2}, e10={e1}, so run iter={estimated_iter}')
+        # model.set_params(max_iter=max_iter)
+        model = svm.LinearSVC(max_iter=estimated_iter, random_state=0, **linear_svc_kwargs)
+        st = datetime.datetime.now()
+        model.fit(tr_x, tr_y)
+        elapse = (datetime.datetime.now() - st).total_seconds()
         score = model.score(val_x, val_y)
-        logger.info(f'model_id={sd_config.cid}: score={score}')
+        self.logger.info(f'model_id={sd_config.cid}: score={score}, elapse={elapse}')
         return ModelScore(model, score)
 
 

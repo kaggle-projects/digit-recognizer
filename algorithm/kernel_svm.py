@@ -104,7 +104,7 @@ class KernelSvmRandomSearch(RandomSearch):
 
     def do_training(self, sd_config: SeededConfig, train_x, train_y, idx) -> ModelScore:
         # get model config by model_id
-        logger.info(f'model_id={sd_config.cid}: config={sd_config.config.to_plain_dict()}')
+        self.logger.info(f'model_id={sd_config.cid}: config={sd_config.config.to_plain_dict()}')
 
         # get validation set
         tr_size = int(train_x.shape[0] * sd_config.config.train_ratio)
@@ -137,7 +137,7 @@ class KernelSvmRandomSearch(RandomSearch):
             raise NotImplemented
 
         # train and validation
-        logger.info(f'model_id={sd_config.cid}: training')
+        self.logger.info(f'model_id={sd_config.cid}: training')
         model = svm.SVC(max_iter=1, **svc_kwargs)
         elapse = 0
         while elapse < sd_config.config.timeout:
@@ -148,12 +148,12 @@ class KernelSvmRandomSearch(RandomSearch):
                 if not any([w.category is ConvergenceWarning for w in wrn]):
                     break
                 elapse += (datetime.datetime.now() - st).total_seconds()
-                sys.stdout.write('..')
+                sys.stdout.write('.')
                 sys.stdout.flush()
         else:
-            logger.info(f'model_id={sd_config.cid}: timeout, {elapse:3g} >= {sd_config.config.timeout:3g}')
+            self.logger.info(f'model_id={sd_config.cid}: timeout, {elapse:3g} >= {sd_config.config.timeout:3g}')
         score = model.score(val_x, val_y)
-        logger.info(f'model_id={sd_config.cid}: score={score}')
+        self.logger.info(f'model_id={sd_config.cid}: score={score}')
         return ModelScore(model, score)
 
 
