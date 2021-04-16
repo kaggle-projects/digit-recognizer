@@ -4,15 +4,17 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-utensil = "==0.0.1a1"
+utensil = "==0.0.1a4"
 pandas = "*"
 numpy = "*"
 scipy = "*"
 matplotlib = "*"
 scikit-learn = "*"
 xgboost = "*"
+liblinear-official = "*"
+tensorflow = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.8"
+python_version = "3.7.9"
